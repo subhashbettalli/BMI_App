@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BVMI • BMI Tracker</title>
+  <meta name="description" content="A clean BMI calculator + tracker that saves to DynamoDB (via API)." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs/%3E%3Cpath fill='%23ffffff' d='M32 6c10 0 18 8 18 18 0 15-18 34-18 34S14 39 14 24c0-10 8-18 18-18Zm0 24a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z'/%3E%3C/svg%3E">
+</head>
+<body>
+  <div class="bg">
+    <div class="grain"></div>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">BVMI</div>
+      <div class="brandText">
+        <div class="title">BMI Tracker</div>
+        <div class="subtitle">Amplify + S3 + DynamoDB</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="tab active" data-view="calc">Calculator</button>
+      <button class="tab" data-view="records">Records</button>
+      <button class="ghost" id="btnSettings" title="Configure API endpoint">Settings</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- CALCULATOR VIEW -->
+    <section id="view-calc" class="view show">
+      <div class="grid">
+        <div class="card">
+          <div class="cardHeader">
+            <h2>Calculate BMI</h2>
+            <p>Save each reading to DynamoDB in one click.</p>
+          </div>
+
+          <div class="row">
+            <label class="field">
+              <span>Patient name</span>
+              <input id="patientName" type="text" placeholder="e.g., Ananya Sharma" autocomplete="name" />
+            </label>
+
+            <label class="field">
+              <span>Units</span>
+              <div class="segmented" role="tablist" aria-label="Unit system">
+                <button id="unitMetric" class="seg active" role="tab" aria-selected="true">Metric</button>
+                <button id="unitImperial" class="seg" role="tab" aria-selected="false">Imperial</button>
+              </div>
+            </label>
+          </div>
+
+          <div class="row" id="metricFields">
+            <label class="field">
+              <span>Height (cm)</span>
+              <input id="heightCm" type="number" inputmode="decimal" placeholder="e.g., 170" min="50" max="260" />
+            </label>
+            <label class="field">
+              <span>Weight (kg)</span>
+              <input id="weightKg" type="number" inputmode="decimal" placeholder="e.g., 65" min="10" max="400" />
+            </label>
+          </div>
+
+          <div class="row hidden" id="imperialFields">
+            <label class="field">
+              <span>Height (ft)</span>
+              <input id="heightFt" type="number" inputmode="numeric" placeholder="e.g., 5" min="1" max="8" />
+            </label>
+            <label class="field">
+              <span>Height (in)</span>
+              <input id="heightIn" type="number" inputmode="numeric" placeholder="e.g., 7" min="0" max="11" />
+            </label>
+            <label class="field">
+              <span>Weight (lb)</span>
+              <input id="weightLb" type="number" inputmode="decimal" placeholder="e.g., 165" min="20" max="900" />
+            </label>
+          </div>
+
+          <div class="actions">
+            <button class="primary" id="btnCompute">Compute</button>
+            <button class="secondary" id="btnSave" disabled>Save to DynamoDB</button>
+          </div>
+
+          <div class="hint">
+            <span class="dot"></span>
+            <span>Tip: Use <b>Settings</b> to set the API Base URL after deploying the backend.</span>
+          </div>
+
+          <div class="toast" id="toast" aria-live="polite"></div>
+        </div>
+
+        <div class="card">
+          <div class="cardHeader">
+            <h2>Result</h2>
+            <p>WHO BMI categories with a clean visual gauge.</p>
+          </div>
+
+          <div class="result">
+            <div class="bmiBig">
+              <div class="bmiLabel">BMI</div>
+              <div class="bmiValue" id="bmiValue">—</div>
+              <div class="badge" id="bmiBadge">—</div>
+            </div>
+
+            <div class="gauge">
+              <div class="gaugeTrack">
+                <div class="gaugeFill" id="gaugeFill"></div>
+              </div>
+              <div class="gaugeScale">
+                <span>10</span><span>18.5</span><span>25</span><span>30</span><span>40+</span>
+              </div>
+            </div>
+
+            <div class="summary" id="summary">
+              Enter details and hit <b>Compute</b>.
+            </div>
+
+            <div class="mini">
+              <div class="miniCard">
+                <div class="miniTitle">Recorded</div>
+                <div class="miniValue" id="miniRecorded">—</div>
+              </div>
+              <div class="miniCard">
+                <div class="miniTitle">Last saved</div>
+                <div class="miniValue" id="miniLastSaved">—</div>
+              </div>
+            </div>
+
+            <div class="tips">
+              <div class="tipsTitle">Quick guidance</div>
+              <ul id="tipsList">
+                <li>Focus on consistency—track at the same time of day.</li>
+                <li>For children, BMI is interpreted differently (age/sex percentiles).</li>
+                <li>BMI is one signal; combine with waist/fitness/clinical context.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RECORDS VIEW -->
+    <section id="view-records" class="view">
+      <div class="grid grid2">
+        <div class="card">
+          <div class="cardHeader">
+            <h2>Records</h2>
+            <p>Search by patient name, view trend, export CSV.</p>
+          </div>
+
+          <div class="row">
+            <label class="field">
+              <span>Patient name</span>
+              <input id="searchName" type="text" placeholder="Type and press Search" />
+            </label>
+            <div class="actions inline">
+              <button class="primary" id="btnSearch">Search</button>
+              <button class="secondary" id="btnExport" disabled>Export CSV</button>
+            </div>
+          </div>
+
+          <div class="tableWrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>BMI</th>
+                  <th>Category</th>
+                  <th>Height</th>
+                  <th>Weight</th>
+                </tr>
+              </thead>
+              <tbody id="recordsBody">
+                <tr><td colspan="5" class="muted">No data loaded yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="muted small" id="recordsMeta"></div>
+        </div>
+
+        <div class="card">
+          <div class="cardHeader">
+            <h2>Trend</h2>
+            <p>Last 30 entries (or fewer) for the searched patient.</p>
+          </div>
+
+          <div class="trend">
+            <canvas id="trendChart" width="800" height="420" aria-label="BMI trend chart" role="img"></canvas>
+            <div class="trendLegend">
+              <span class="pill">Underweight &lt; 18.5</span>
+              <span class="pill">Normal 18.5–24.9</span>
+              <span class="pill">Overweight 25–29.9</span>
+              <span class="pill">Obesity ≥ 30</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS MODAL -->
+    <div class="modal hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modalCard">
+        <div class="modalHeader">
+          <div>
+            <div class="modalTitle" id="settingsTitle">API Settings</div>
+            <div class="modalSubtitle">Paste your deployed API base URL (HTTP API).</div>
+          </div>
+          <button class="iconBtn" id="btnCloseSettings" aria-label="Close settings">✕</button>
+        </div>
+
+        <label class="field">
+          <span>API Base URL</span>
+          <input id="apiBaseUrl" type="url" placeholder="e.g., https://abc123.execute-api.ap-south-1.amazonaws.com" />
+        </label>
+
+        <div class="actions right">
+          <button class="secondary" id="btnResetApi">Reset</button>
+          <button class="primary" id="btnSaveApi">Save</button>
+        </div>
+
+        <div class="muted small">
+          Your value is stored locally in this browser (localStorage).
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <div class="muted">Built for: S3 + Amplify Hosting + DynamoDB (via Lambda + API Gateway)</div>
+      <div class="muted small">Routes: <code>POST /records</code> and <code>GET /records?patientName=...</code></div>
+    </footer>
+  </main>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

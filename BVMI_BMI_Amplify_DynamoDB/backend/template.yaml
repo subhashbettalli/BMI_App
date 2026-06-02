@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: BVMI/BMI Tracker Backend - HTTP API + Lambda + DynamoDB
+
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    Timeout: 10
+    MemorySize: 256
+
+Parameters:
+  TableName:
+    Type: String
+    Default: bvmi-bmi-records
+  StageName:
+    Type: String
+    Default: prod
+
+Resources:
+  RecordsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref TableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: patientName
+          AttributeType: S
+        - AttributeName: recordTs
+          AttributeType: S
+      KeySchema:
+        - AttributeName: patientName
+          KeyType: HASH
+        - AttributeName: recordTs
+          KeyType: RANGE
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref StageName
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowHeaders:
+          - Content-Type
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        MaxAge: 600
+
+  RecordsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handler.handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref RecordsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RecordsTable
+      Events:
+        PostRecord:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /records
+            Method: POST
+        GetRecords:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /records
+            Method: GET
+        OptionsRecords:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /records
+            Method: OPTIONS
+
+Outputs:
+  ApiBaseUrl:
+    Description: "Use this as API Base URL in the frontend (Settings)."
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  DynamoTable:
+    Description: "DynamoDB table storing BMI records."
+    Value: !Ref RecordsTable

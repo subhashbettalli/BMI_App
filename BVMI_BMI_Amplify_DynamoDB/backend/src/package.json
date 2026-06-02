@@ -1,0 +1,8 @@
+{
+  "name": "bvmi-bmi-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BVMI BMI Tracker backend (Lambda + DynamoDB + HTTP API)",
+  "main": "handler.js",
+  "license": "UNLICENSED"
+}
